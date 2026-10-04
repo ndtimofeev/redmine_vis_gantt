@@ -1,0 +1,12 @@
+{
+  "name": "redmine-vis-gantt-e2e",
+  "private": true,
+  "description": "Browser scenarios for the vis-timeline Gantt (development tool, not part of the plugin)",
+  "scripts": {
+    "drag": "node drag.js",
+    "ui": "node ui.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}

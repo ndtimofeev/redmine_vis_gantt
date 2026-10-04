@@ -1,0 +1,128 @@
+/* Gantt chart on vis-timeline (redmine_vis_gantt) */
+
+.vg-toolbar { margin: 8px 0 4px; font-size: 0.95em; }
+.vg-toolbar > a { margin-right: 14px; white-space: nowrap; }
+.vg-toolbar .vg-toggle { white-space: nowrap; }
+.vg-hint { margin: 2px 0 6px; color: #666; font-size: 0.9em; }
+.vg-status { min-height: 1.5em; margin-bottom: 2px; font-size: 0.95em; }
+.vg-status-progress { color: #666; }
+.vg-status-ok { color: #2a7a2a; }
+.vg-status-error { color: #b00; font-weight: bold; }
+
+#vis-gantt {
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #ccc;
+  font-size: 12px;
+}
+
+/* ---- left column (subjects) ---- */
+#vis-gantt .vis-labelset .vis-label {
+  border-bottom: 1px solid #eee;
+  color: inherit;
+}
+#vis-gantt .vis-labelset .vis-label .vis-inner { padding: 0; }
+#vis-gantt .vg-label {
+  box-sizing: border-box;
+  width: 330px;
+  height: 26px;
+  line-height: 26px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#vis-gantt .vg-label-project { font-weight: bold; }
+#vis-gantt .vg-label a.closed { text-decoration: line-through; color: #999; }
+#vis-gantt .vg-label a.vg-overdue .vg-subject { color: #b00; }
+#vis-gantt .vg-label a.vg-version::before { content: "\25C6"; margin-right: 5px; color: #4a9; }
+#vis-gantt .vg-label-project a { text-decoration: none; }
+#vis-gantt .vg-expander {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+  vertical-align: middle;
+  text-align: center;
+  line-height: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+#vis-gantt .vg-expander.vg-expanded::before { content: "\25BE"; }
+#vis-gantt .vg-expander.vg-collapsed::before { content: "\25B8"; }
+
+#vis-gantt .vis-foreground .vis-group { border-bottom: 1px solid #eee; }
+#vis-gantt .vis-panel.vis-left { border-right: 1px solid #ccc; }
+
+/* ---- bars ---- */
+#vis-gantt .vis-item.vg-bar {
+  box-sizing: border-box;
+  height: 18px;
+  border: 1px solid #888;
+  border-radius: 3px;
+  background: #aaa;
+  color: #222;
+  font-size: 11px;
+  line-height: 16px;
+  overflow: hidden;
+}
+#vis-gantt .vis-item.vg-bar .vis-item-overflow { overflow: hidden; }
+#vis-gantt .vis-item.vg-bar .vis-item-content { padding: 0 4px; }
+
+#vis-gantt .vis-item.vg-editable { cursor: move; }
+#vis-gantt .vis-item.vg-bar.vis-selected { border-color: #1a6fc2; box-shadow: 0 0 0 1px #1a6fc2; z-index: 2; }
+#vis-gantt .vis-item.vg-closed { opacity: 0.6; }
+
+/* Parent issues: a thin summary bar, as in the built-in Gantt. */
+#vis-gantt .vis-item.vg-bar-issue.vg-parent,
+#vis-gantt .vis-item.vg-bar-project {
+  height: 8px;
+  margin-top: 5px;
+  border-color: #666;
+  border-radius: 0;
+  background: #666 !important;
+  line-height: 6px;
+}
+#vis-gantt .vis-item.vg-bar-issue.vg-parent .vis-item-content,
+#vis-gantt .vis-item.vg-bar-project .vis-item-content { display: none; }
+#vis-gantt .vis-item.vg-bar-issue.vg-parent.vg-editable { cursor: move; }
+
+#vis-gantt .vis-item.vg-bar-version { height: 10px; margin-top: 4px; border-radius: 0; border-color: #4a9; }
+#vis-gantt .vis-item.vg-bar-version .vis-item-content { display: none; }
+
+/* drag handles should be easy to grab */
+#vis-gantt .vis-item.vis-range .vis-drag-left,
+#vis-gantt .vis-item.vis-range .vis-drag-right { width: 8px; }
+#vis-gantt .vis-item.vis-range .vis-drag-left { left: -4px; }
+#vis-gantt .vis-item.vis-range .vis-drag-right { right: -4px; }
+#vis-gantt .vis-item.vg-bar:not(.vg-editable) .vis-drag-left,
+#vis-gantt .vis-item.vg-bar:not(.vg-editable) .vis-drag-right { display: none; }
+
+/* ---- relations ---- */
+#vis-gantt .vg-arrows {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ---- time axis ---- */
+#vis-gantt .vis-time-axis .vis-text { color: #444; }
+#vis-gantt .vis-current-time { background-color: #f33; width: 1px; }
+
+/* ---- tooltip ---- */
+/* vis-timeline injects its own stylesheet when the script runs, i.e. after this one: stay more specific. */
+#vis-gantt div.vis-tooltip {
+  max-width: 420px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  color: #222;
+  background: #ffffe0;
+  border: 1px solid #bbb;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.2);
+}

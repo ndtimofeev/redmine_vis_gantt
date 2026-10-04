@@ -1,0 +1,76 @@
+<% html_title(l(:label_vis_gantt)) %>
+
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'vis_gantt', plugin: 'redmine_vis_gantt' %>
+  <%= javascript_include_tag 'vis-timeline-graph2d.min', plugin: 'redmine_vis_gantt' %>
+  <%= javascript_include_tag 'vis_gantt', plugin: 'redmine_vis_gantt' %>
+<% end %>
+
+<div class="contextual">
+  <%= link_to l(:label_vis_gantt_builtin), { controller: 'gantts', action: 'show', project_id: @project },
+              class: 'icon icon-gantt' %>
+</div>
+
+<h2><%= @query.new_record? ? l(:label_vis_gantt) : @query.name %></h2>
+<%= @query.persisted? && @query.description.present? ? content_tag('p', @query.description, class: 'subtitle') : '' %>
+
+<%= form_tag({ controller: 'vis_gantts', action: 'show', project_id: @project },
+             method: :get, id: 'query_form') do %>
+  <%= hidden_field_tag 'set_filter', '1' %>
+  <div id="query_form_with_buttons" class="hide-when-print">
+    <div id="query_form_content">
+      <fieldset id="filters" class="collapsible <%= @query.new_record? ? '' : 'collapsed' %>">
+        <legend onclick="toggleFieldset(this);" class="icon icon-<%= @query.new_record? ? 'expanded' : 'collapsed' %>">
+          <%= sprite_icon(@query.new_record? ? 'angle-down' : 'angle-right', rtl: !@query.new_record?) %>
+          <%= l(:label_filter_plural) %>
+        </legend>
+        <div style="<%= @query.new_record? ? '' : 'display: none;' %>">
+          <%= render partial: 'queries/filters', locals: { query: @query } %>
+        </div>
+      </fieldset>
+    </div>
+    <p class="buttons">
+      <%= link_to_function sprite_icon('checked', l(:button_apply)), '$("#query_form").submit()',
+                           class: 'icon icon-checked' %>
+      <%= link_to sprite_icon('reload', l(:button_clear)), { project_id: @project, set_filter: 1 },
+                  class: 'icon icon-reload' %>
+    </p>
+  </div>
+<% end %>
+
+<%= error_messages_for 'query' %>
+
+<% if @chart %>
+  <% chart_data = @chart.as_json %>
+  <% if chart_data[:truncated] %>
+    <p class="warning"><%= l(:notice_gantt_chart_truncated, max: @gantt.max_rows) %></p>
+  <% end %>
+
+  <% config = {
+       initial: chart_data,
+       dataUrl: url_for(controller: 'vis_gantts', action: 'data', project_id: @project,
+                        params: request.query_parameters, only_path: true),
+       updateUrlTemplate: vis_gantt_issue_dates_path(id: 0).sub('/0/', '/__ID__/'),
+       locale: current_language.to_s,
+       i18n: {
+         today: l(:label_today).capitalize, zoomIn: l(:label_vis_gantt_zoom_in), zoomOut: l(:label_vis_gantt_zoom_out),
+         fit: l(:label_vis_gantt_fit), expandAll: l(:label_vis_gantt_expand_all),
+         collapseAll: l(:label_vis_gantt_collapse_all), relations: l(:label_vis_gantt_relations),
+         saving: l(:label_vis_gantt_saving), saved: l(:notice_vis_gantt_saved),
+         failed: l(:error_vis_gantt_save_failed), empty: l(:label_no_data),
+         startDate: l(:field_start_date), dueDate: l(:field_due_date), assignee: l(:field_assigned_to),
+         status: l(:field_status), doneRatio: l(:field_done_ratio),
+         datesDerived: l(:text_vis_gantt_dates_derived), dueInherited: l(:text_vis_gantt_due_inherited),
+         notEditable: l(:text_vis_gantt_not_editable)
+       }
+     } %>
+
+  <div class="vg-toolbar hide-when-print" id="vis-gantt-toolbar"></div>
+  <p class="vg-hint hide-when-print"><%= l(:text_vis_gantt_hint) %></p>
+  <div id="vis-gantt-status" class="vg-status hide-when-print" role="status" aria-live="polite"></div>
+  <%= content_tag :div, '', id: 'vis-gantt', data: { config: config.to_json } %>
+<% end %>
+
+<% content_for :sidebar do %>
+  <%= render partial: 'issues/sidebar' %>
+<% end %>
