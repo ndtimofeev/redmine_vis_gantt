@@ -17,3 +17,7 @@ ru:
   error_vis_gantt_invalid_dates: "Некорректные даты"
   error_vis_gantt_dates_not_editable: "Сроки этой задачи изменить нельзя"
   error_vis_gantt_stale_issue: "Задачу уже изменил кто-то другой, диаграмма обновлена. Попробуйте ещё раз."
+  text_vis_gantt_loading: "Загрузка диаграммы… Если это сообщение не исчезает, JavaScript плагина не загрузился или завершился с ошибкой: откройте консоль браузера (F12) и см. раздел «Troubleshooting» в README плагина."
+  error_vis_gantt_assets_missing: "Диаграмму показать нельзя: файлы JavaScript и CSS плагина не вошли в собранные ассеты Redmine, поэтому браузер получает для них 404. Попросите администратора Redmine выполнить команду ниже в каталоге Redmine и перезапустить Redmine:"
+  error_vis_gantt_script_failed: "Скрипт диаграммы не запустился: %{message}"
+  error_vis_gantt_library_missing: "Библиотека vis-timeline не загрузилась (браузер не смог получить /assets/plugin_assets/redmine_vis_gantt/vis-timeline-graph2d.min.js). См. раздел «Troubleshooting» в README плагина."

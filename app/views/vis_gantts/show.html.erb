@@ -40,7 +40,12 @@
 
 <%= error_messages_for 'query' %>
 
-<% if @chart %>
+<% if @chart && !RedmineVisGantt.assets_available? %>
+  <div class="flash error" id="vis-gantt-assets-missing">
+    <p><%= l(:error_vis_gantt_assets_missing) %></p>
+    <p><code>RAILS_ENV=production bin/rails assets:precompile</code></p>
+  </div>
+<% elsif @chart %>
   <% chart_data = @chart.as_json %>
   <% if chart_data[:truncated] %>
     <p class="warning"><%= l(:notice_gantt_chart_truncated, max: @gantt.max_rows) %></p>
@@ -61,14 +66,19 @@
          startDate: l(:field_start_date), dueDate: l(:field_due_date), assignee: l(:field_assigned_to),
          status: l(:field_status), doneRatio: l(:field_done_ratio),
          datesDerived: l(:text_vis_gantt_dates_derived), dueInherited: l(:text_vis_gantt_due_inherited),
-         notEditable: l(:text_vis_gantt_not_editable)
+         notEditable: l(:text_vis_gantt_not_editable),
+         libraryMissing: l(:error_vis_gantt_library_missing),
+         scriptFailed: l(:error_vis_gantt_script_failed, message: '%{message}')
        }
      } %>
 
   <div class="vg-toolbar hide-when-print" id="vis-gantt-toolbar"></div>
   <p class="vg-hint hide-when-print"><%= l(:text_vis_gantt_hint) %></p>
   <div id="vis-gantt-status" class="vg-status hide-when-print" role="status" aria-live="polite"></div>
-  <%= content_tag :div, '', id: 'vis-gantt', data: { config: config.to_json } %>
+  <%# The text stays visible if the script never runs (e.g. its file answers 404); the script removes it. %>
+  <%= content_tag :div, id: 'vis-gantt', data: { config: config.to_json } do %>
+    <p class="vg-loading"><%= l(:text_vis_gantt_loading) %></p>
+  <% end %>
 <% end %>
 
 <% content_for :sidebar do %>

@@ -17,6 +17,9 @@
   font-size: 12px;
 }
 
+#vis-gantt .vg-loading { margin: 0; padding: 12px; color: #666; }
+#vis-gantt > .flash { margin: 0; }
+
 /* ---- left column (subjects) ---- */
 #vis-gantt .vis-labelset .vis-label {
   border-bottom: 1px solid #eee;

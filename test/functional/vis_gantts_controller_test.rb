@@ -29,6 +29,27 @@ class VisGanttsControllerTest < Redmine::ControllerTest
     assert config['initial']['rows'].any?
   end
 
+  def test_show_has_a_loading_placeholder_that_stays_if_the_script_never_runs
+    get :show, params: { project_id: 1 }
+
+    assert_response :success
+    assert_select 'div#vis-gantt p.vg-loading', /Loading the chart/
+    assert_select '#vis-gantt-assets-missing', 0
+  end
+
+  def test_show_explains_how_to_fix_it_when_the_plugin_assets_are_not_compiled
+    RedmineVisGantt.stubs(:assets_available?).returns(false)
+
+    get :show, params: { project_id: 1 }
+
+    assert_response :success
+    assert_select '#vis-gantt-assets-missing.flash.error' do
+      assert_select 'code', 'RAILS_ENV=production bin/rails assets:precompile'
+    end
+    assert_select 'div#vis-gantt', 0
+    assert_select 'form#query_form' # the rest of the page still works
+  end
+
   def test_show_without_project_lists_all_visible_projects
     get :show
 
@@ -512,6 +533,24 @@ class VisGanttsControllerTest < Redmine::ControllerTest
   end
 
   # ---------------------------------------------------------- permissions
+
+  def test_assets_available_when_propshaft_knows_all_the_plugin_files
+    assert RedmineVisGantt.assets_available?
+  end
+
+  def test_assets_not_available_when_the_compiled_assets_lack_a_plugin_file
+    resolver = Rails.application.assets.resolver
+    resolver.stubs(:resolve).returns('/assets/x.js')
+    resolver.stubs(:resolve).with('plugin_assets/redmine_vis_gantt/vis_gantt.js').returns(nil)
+
+    assert_not RedmineVisGantt.assets_available?
+  end
+
+  def test_assets_check_does_not_hide_the_chart_when_it_cannot_decide
+    Rails.application.assets.resolver.stubs(:resolve).raises(StandardError, 'boom')
+
+    assert RedmineVisGantt.assets_available?
+  end
 
   def test_the_plugin_attaches_its_actions_to_existing_permissions_only_once
     before = Redmine::AccessControl.permission(:view_gantt).actions.dup

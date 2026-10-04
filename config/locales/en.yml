@@ -17,3 +17,7 @@ en:
   error_vis_gantt_invalid_dates: "Invalid dates"
   error_vis_gantt_dates_not_editable: "The dates of this issue cannot be changed"
   error_vis_gantt_stale_issue: "The issue was changed by somebody else, the chart has been refreshed. Please try again."
+  text_vis_gantt_loading: "Loading the chart… If this message does not go away, the plugin's JavaScript did not load or failed: open the browser console (F12) and see \"Troubleshooting\" in the plugin's README."
+  error_vis_gantt_assets_missing: "The chart cannot be shown: the plugin's JavaScript and CSS files are not part of Redmine's compiled assets, so the browser gets 404 for them. Ask the Redmine administrator to run the command below in the Redmine directory and to restart Redmine:"
+  error_vis_gantt_script_failed: "The chart script did not start: %{message}"
+  error_vis_gantt_library_missing: "The vis-timeline library did not load (the browser could not fetch /assets/plugin_assets/redmine_vis_gantt/vis-timeline-graph2d.min.js). See \"Troubleshooting\" in the plugin's README."

@@ -53,12 +53,47 @@ The plugin attaches its controller actions to those existing permissions in `lib
 
 ```
 cd /path/to/redmine/plugins
-cp -r /path/to/redmine_vis_gantt .        # or git clone / symlink
-# no migrations, no gems; restart Redmine
+cp -r /path/to/redmine_vis_gantt .        # the directory must be named exactly redmine_vis_gantt
+cd ..
+# production only: Redmine serves precompiled assets, so compile the plugin's too
+RAILS_ENV=production bin/rails assets:precompile      # add RAILS_RELATIVE_URL_ROOT=/sub-uri if Redmine runs under a sub-URI
+# restart Redmine
 ```
+
+No migrations and no gems. The `assets:precompile` step is the same one Redmine's own `doc/INSTALL` and
+`doc/UPGRADING` prescribe; **repeat it whenever the plugin's JavaScript or CSS changes**, and see
+*Troubleshooting* below if you skip it. In development mode nothing but a restart is needed.
 
 Tested on **Redmine 6.1.5** (Rails 7.2) and **Redmine 7.0.2** (Rails 8.1) with Ruby 3.3 and SQLite.
 The plugin declares `requires_redmine version_or_higher: '6.0.0'`.
+
+## Troubleshooting
+
+### The tab shows only the hint text and nothing else (no toolbar, no chart)
+
+The page is rendered by Redmine, the chart by the plugin's JavaScript. If that JavaScript is not loaded,
+all you see is the text. The plugin now says so instead of staying silent:
+
+* **A red box "The chart cannot be shown: the plugin's JavaScript and CSS files are not part of Redmine's
+  compiled assets"**: run `RAILS_ENV=production bin/rails assets:precompile` in the Redmine directory and
+  restart Redmine.
+  *Why it happens:* in production Redmine serves the precompiled `public/assets`. At startup it recompiles
+  only if some asset file is **newer than the manifest** (`public/assets/.manifest.json`; see
+  `manifest_outdated?` in Redmine's `config/initializers/10-patches.rb`). Plugin files that are older
+  than the manifest are silently left out, and their URLs answer 404. Typical causes: the plugin was added
+  to a Docker image or a server whose assets had been precompiled earlier, or the files were extracted from
+  an archive with their original timestamps. (`touch`-ing the plugin's asset files and restarting works as
+  well, but precompiling is the documented way.)
+* **The text "Loading the chart…" stays on the page**: the plugin's own script did not load. Open the browser
+  developer tools (F12) → *Network*, reload, and look for `vis_gantt-….js` / `vis-timeline-graph2d…js`
+  with status 404 (same remedy as above), blocked by a Content-Security-Policy, or served from a stale
+  cache of a reverse proxy.
+* **A red box "The vis-timeline library did not load"**: the library file is missing or blocked; same checks.
+* **A red box "The chart script did not start: …"** with a reason: a JavaScript error while starting up. The
+  full stack trace is in the browser console; please report it together with the browser version.
+
+Also check that the plugin directory is named `redmine_vis_gantt` (not `redmine_vis_gantt-main`, and not
+nested one level deeper) and that Redmine was restarted after copying it.
 
 ## Layout
 
@@ -97,9 +132,9 @@ RAILS_ENV=test bundle exec rake redmine:plugins:test NAME=redmine_vis_gantt
 REDMINE_ROOT=/path/to/redmine RAILS_ENV=test bundle exec rake redmine:plugins:test NAME=redmine_vis_gantt
 ```
 
-42 tests: data shape and ordering, hierarchy, editable flags, workflow read-only fields, relations,
+47 tests: data shape and ordering, hierarchy, editable flags, workflow read-only fields, relations,
 query filters, private issues, row limit, permissions, closed projects, stale `lock_version`,
-malformed input, rescheduling of followers and derived parents.
+malformed input, rescheduling of followers and derived parents, and the "assets not compiled" warning.
 
 Browser scenarios (real Chromium via Playwright, real mouse drags) are in `dev/e2e`:
 
@@ -109,6 +144,7 @@ bundle exec rails server &
 cd plugins/redmine_vis_gantt/dev/e2e && npm install
 BASE=http://127.0.0.1:3000 node drag.js   # moving, resizing, followers, invalid moves, CSRF, history
 BASE=http://127.0.0.1:3000 node ui.js     # permissions, collapse, zoom, filters, double-click, Russian
+BASE=http://127.0.0.1:3000 node failures.js   # what the page shows when the script or the library cannot load
 ```
 
 (`seed_demo.rb` resets the admin password and creates demo users: development databases only.)

@@ -25,11 +25,46 @@
     start();
   }
 
+  // Shows a message in place of the chart. Used for failures that would otherwise leave the page empty.
+  function showFailure(root, message) {
+    while (root.firstChild) { root.removeChild(root.firstChild); }
+    var box = document.createElement('div');
+    box.className = 'flash error';
+    box.setAttribute('role', 'alert');
+    box.textContent = message;
+    root.appendChild(box);
+    if (window.console) { console.error('[redmine_vis_gantt] ' + message); }
+  }
+
   function start() {
   var root = document.getElementById('vis-gantt');
-  if (!root || typeof vis === 'undefined') { return; }
+  if (!root) { return; }
 
-  var config = JSON.parse(root.getAttribute('data-config'));
+  var config;
+  try {
+    config = JSON.parse(root.getAttribute('data-config'));
+  } catch (e) {
+    showFailure(root, 'redmine_vis_gantt: cannot read the chart configuration: ' + e.message);
+    return;
+  }
+
+  if (typeof vis === 'undefined') {
+    showFailure(root, config.i18n.libraryMissing);
+    return;
+  }
+  // From here on the script is running: drop the "loading" placeholder.
+  while (root.firstChild) { root.removeChild(root.firstChild); }
+
+  // Anything that goes wrong while setting up must be visible, not an empty page.
+  try {
+    run(root, config);
+  } catch (e) {
+    showFailure(root, config.i18n.scriptFailed.replace('%{message}', e && e.message ? e.message : String(e)));
+    throw e; // keep the stack trace in the console
+  }
+  }
+
+  function run(root, config) {
   var t = config.i18n;
 
   var rowsById = {};

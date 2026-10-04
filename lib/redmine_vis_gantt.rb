@@ -23,4 +23,26 @@ module RedmineVisGantt
       end
     end
   end
+
+  # Logical paths (as Propshaft knows them) of the files the page needs.
+  ASSETS = %w[
+    plugin_assets/redmine_vis_gantt/vis-timeline-graph2d.min.js
+    plugin_assets/redmine_vis_gantt/vis_gantt.js
+    plugin_assets/redmine_vis_gantt/vis_gantt.css
+  ].freeze
+
+  # False when Redmine's compiled assets do not contain the plugin's files.
+  #
+  # In production Redmine serves the precompiled public/assets. It recompiles at
+  # startup only if some asset file is newer than the manifest, so plugin files
+  # that are older than the manifest (assets precompiled after the plugin was
+  # copied in, files extracted from an archive with their original timestamps,
+  # a Docker image built before the plugin was added, ...) are silently left out
+  # and their URLs answer 404. The page would then show nothing but its text.
+  def self.assets_available?
+    resolver = Rails.application.assets.resolver
+    ASSETS.all? { |path| resolver.resolve(path) }
+  rescue StandardError
+    true # cannot tell: do not hide the chart because of a failed check
+  end
 end
