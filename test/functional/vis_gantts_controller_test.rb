@@ -44,7 +44,7 @@ class VisGanttsControllerTest < Redmine::ControllerTest
 
     assert_response :success
     assert_select '#vis-gantt-assets-missing.flash.error' do
-      assert_select 'code', 'RAILS_ENV=production bin/rails assets:precompile'
+      assert_select 'code', 'RAILS_ENV=production bundle exec rake assets:precompile'
     end
     assert_select 'div#vis-gantt', 0
     assert_select 'form#query_form' # the rest of the page still works

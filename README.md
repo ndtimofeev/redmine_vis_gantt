@@ -56,11 +56,16 @@ cd /path/to/redmine/plugins
 cp -r /path/to/redmine_vis_gantt .        # the directory must be named exactly redmine_vis_gantt
 cd ..
 # production only: Redmine serves precompiled assets, so compile the plugin's too
-RAILS_ENV=production bin/rails assets:precompile      # add RAILS_RELATIVE_URL_ROOT=/sub-uri if Redmine runs under a sub-URI
+RAILS_ENV=production bundle exec rake assets:precompile   # add RAILS_RELATIVE_URL_ROOT=/sub-uri if Redmine runs under a sub-URI
 # restart Redmine
 ```
 
-No migrations and no gems. The `assets:precompile` step is the same one Redmine's own `doc/INSTALL` and
+Run the command as the user Redmine runs as (it writes to `public/assets`), e.g. `sudo -u redmine …`.
+`bin/rails assets:precompile`, as written in Redmine's own `doc/INSTALL`, is equivalent, but fails with
+`Permission denied` if `bin/rails` has lost its executable bit (Redmine unpacked from a zip, a `noexec`
+mount); `bundle exec rake …` and `ruby bin/rails …` do not need that bit.
+
+No migrations and no gems. The `assets:precompile` step is the one Redmine's own `doc/INSTALL` and
 `doc/UPGRADING` prescribe; **repeat it whenever the plugin's JavaScript or CSS changes**, and see
 *Troubleshooting* below if you skip it. In development mode nothing but a restart is needed.
 
@@ -75,7 +80,7 @@ The page is rendered by Redmine, the chart by the plugin's JavaScript. If that J
 all you see is the text. The plugin now says so instead of staying silent:
 
 * **A red box "The chart cannot be shown: the plugin's JavaScript and CSS files are not part of Redmine's
-  compiled assets"**: run `RAILS_ENV=production bin/rails assets:precompile` in the Redmine directory and
+  compiled assets"**: run `RAILS_ENV=production bundle exec rake assets:precompile` in the Redmine directory and
   restart Redmine.
   *Why it happens:* in production Redmine serves the precompiled `public/assets`. At startup it recompiles
   only if some asset file is **newer than the manifest** (`public/assets/.manifest.json`; see

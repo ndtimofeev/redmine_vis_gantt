@@ -43,7 +43,7 @@
 <% if @chart && !RedmineVisGantt.assets_available? %>
   <div class="flash error" id="vis-gantt-assets-missing">
     <p><%= l(:error_vis_gantt_assets_missing) %></p>
-    <p><code>RAILS_ENV=production bin/rails assets:precompile</code></p>
+    <p><code>RAILS_ENV=production bundle exec rake assets:precompile</code></p>
   </div>
 <% elsif @chart %>
   <% chart_data = @chart.as_json %>
