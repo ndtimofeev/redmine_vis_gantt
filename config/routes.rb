@@ -9,3 +9,4 @@ get '/vis_gantt/data', to: 'vis_gantts#data', as: 'vis_gantt_data'
 get '/vis_gantt', to: 'vis_gantts#show', as: 'vis_gantt'
 put '/vis_gantt/issues/:id/dates', to: 'vis_gantts#update_dates', as: 'vis_gantt_issue_dates',
                                    constraints: { id: /\d+/ }
+put '/vis_gantt/restore_dates', to: 'vis_gantts#restore_dates', as: 'vis_gantt_restore_dates'

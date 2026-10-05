@@ -9,8 +9,8 @@ module RedmineVisGantt
   # Issue#safe_attributes.
   PERMISSION_ACTIONS = {
     view_gantt: %w[vis_gantts/show vis_gantts/data],
-    edit_issues: %w[vis_gantts/update_dates],
-    edit_own_issues: %w[vis_gantts/update_dates]
+    edit_issues: %w[vis_gantts/update_dates vis_gantts/restore_dates],
+    edit_own_issues: %w[vis_gantts/update_dates vis_gantts/restore_dates]
   }.freeze
 
   def self.extend_permissions

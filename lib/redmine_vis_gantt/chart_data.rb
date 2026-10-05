@@ -124,7 +124,10 @@ module RedmineVisGantt
         url: @urls.issue_path(issue), assignee: issue.assigned_to&.name,
         status: issue.status.name, closed: issue.closed?, overdue: issue.overdue?,
         lock_version: issue.lock_version, derived: issue.dates_derived?,
-        editable: editable_flags(issue)
+        editable: editable_flags(issue),
+        # As stored: `start`/`due` below are what is drawn (one-day bars for issues
+        # with a single date, the version's date as a fallback for the due date).
+        start_date: issue.start_date, due_date: issue.due_date
       )
       row[:done_ratio] = issue.done_ratio unless issue.disabled_core_fields.include?('done_ratio')
 

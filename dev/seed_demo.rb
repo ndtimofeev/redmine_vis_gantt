@@ -7,6 +7,7 @@ today = Date.today
 admin = User.find_by_login('admin')
 admin.password = admin.password_confirmation = 'adminadmin1'
 admin.must_change_passwd = false
+admin.language = 'en'
 admin.save!
 
 Setting.default_language = 'en'

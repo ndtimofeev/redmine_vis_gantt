@@ -37,6 +37,41 @@ class VisGanttsControllerTest < Redmine::ControllerTest
     assert_select '#vis-gantt-assets-missing', 0
   end
 
+  def test_show_has_the_regions_the_script_fills_in
+    get :show, params: { project_id: 1 }
+
+    assert_response :success
+    assert_select '.vg-app' do
+      assert_select '#vis-gantt-toolbar[role=toolbar][aria-label]'
+      assert_select '#vis-gantt-details[role=region][aria-label]'
+      assert_select '#vis-gantt-help[hidden]'
+      assert_select 'ul#vis-gantt-legend'
+    end
+    assert_select 'link[rel=stylesheet][media=all][href*=vis_gantt]'
+  end
+
+  def test_show_sends_every_text_the_script_needs_in_the_users_language
+    %w[en ru de].each do |language|
+      User.find(2).update_columns(language: language)
+      @request.session[:user_id] = 2
+
+      get :show, params: { project_id: 1 }
+
+      texts = JSON.parse(css_select('#vis-gantt').first['data-config'])['i18n'].values.flatten
+      assert texts.any?, language
+      assert texts.none? { |text| text.to_s.strip.empty? || text.to_s.include?('translation missing') }, "missing text in #{language}"
+    end
+  end
+
+  def test_the_locale_files_define_the_same_keys
+    dir = File.expand_path('../../config/locales', __dir__)
+    en = YAML.load_file(File.join(dir, 'en.yml'))['en']
+    ru = YAML.load_file(File.join(dir, 'ru.yml'))['ru']
+
+    assert_equal en.keys.sort, ru.keys.sort
+    assert en.keys.any? { |key| key.start_with?('label_vis_gantt') }
+  end
+
   def test_show_explains_how_to_fix_it_when_the_plugin_assets_are_not_compiled
     RedmineVisGantt.stubs(:assets_available?).returns(false)
 
@@ -532,7 +567,240 @@ class VisGanttsControllerTest < Redmine::ControllerTest
     assert_equal [@today + 3, @today + 6], [issue.reload.start_date, issue.due_date]
   end
 
-  # ---------------------------------------------------------- permissions
+
+  # -------------------------------------------------------- restore_dates
+
+  # (Plain params, not `as: :json`: that would set format=json, which Redmine treats as an API
+  # request without a session. The page's fetch() to a URL without a suffix has no format.)
+  def restore(changes)
+    put :restore_dates, params: { changes: changes }
+  end
+
+  # One entry of the "changes" list: the dates to put back (nil clears a date).
+  def change(issue, start, due, lock_version = nil)
+    { id: issue.id, start_date: start&.to_s, due_date: due&.to_s, lock_version: lock_version }
+  end
+
+  def test_restore_dates_puts_dates_back_and_records_history_for_each_issue
+    a = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    b = Issue.generate!(project: @project, start_date: @today + 10, due_date: @today + 12)
+
+    assert_difference 'Journal.count', 2 do
+      restore [change(a, @today + 20, @today + 25), change(b, @today + 30, @today + 31)]
+    end
+
+    assert_response :success
+    assert_equal({ 'ok' => true, 'count' => 2 }, response.parsed_body)
+    assert_equal [@today + 20, @today + 25], [a.reload.start_date, a.due_date]
+    assert_equal [@today + 30, @today + 31], [b.reload.start_date, b.due_date]
+    assert_equal User.find(2), a.journals.last.user
+  end
+
+  def test_restore_dates_can_clear_a_date
+    issue = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+
+    restore [change(issue, nil, @today + 3)]
+
+    assert_response :success
+    assert_nil issue.reload.start_date
+    assert_equal @today + 3, issue.due_date
+  end
+
+  def test_restore_dates_skips_changes_that_are_already_in_place
+    issue = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+
+    assert_no_difference 'Journal.count' do
+      restore [change(issue, @today, @today + 3)]
+    end
+
+    assert_response :success
+  end
+
+  def test_restore_dates_is_all_or_nothing
+    first = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    second = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+
+    assert_no_difference 'Journal.count' do
+      restore [change(first, @today + 10, @today + 12), change(second, @today + 9, @today + 1)] # due before start
+    end
+
+    assert_response :unprocessable_entity
+    assert_match(/##{second.id}: .*greater than start date/i, response.parsed_body['errors'].join)
+    assert_equal @today, first.reload.start_date
+    assert_equal @today, second.reload.start_date
+  end
+
+  def test_restore_dates_undoes_a_move_of_a_predecessor_and_its_follower
+    first = Issue.generate!(project: @project, start_date: @today, due_date: @today + 4)
+    second = Issue.generate!(project: @project, start_date: @today + 5, due_date: @today + 8)
+    IssueRelation.create!(issue_from: first, issue_to: second, relation_type: 'precedes')
+    original_first = [first.reload.start_date, first.due_date]
+    original_second = [second.reload.start_date, second.due_date]
+
+    put :update_dates, params: { id: first.id, issue: { start_date: (@today + 30).to_s, due_date: (@today + 34).to_s } }
+    assert_response :success
+    assert_not_equal original_second, [second.reload.start_date, second.due_date], 'Redmine should have pushed the follower'
+
+    restore [change(first, *original_first), change(second, *original_second)]
+
+    assert_response :success
+    assert_equal original_first, [first.reload.start_date, first.due_date]
+    assert_equal original_second, [second.reload.start_date, second.due_date]
+  end
+
+  def test_restore_dates_detects_changes_made_in_the_meantime
+    issue = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    other = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    stale = issue.lock_version
+    issue.update!(subject: 'changed by somebody else')
+
+    assert_no_difference 'Journal.count' do
+      restore [change(other, @today + 5, @today + 6, other.lock_version), change(issue, @today + 5, @today + 6, stale)]
+    end
+
+    assert_response :conflict
+    assert_match(/##{issue.id}|##{issue.id} /, response.parsed_body['errors'].join)
+    assert_equal @today, other.reload.start_date, 'nothing may be applied when one issue conflicts'
+  end
+
+  def test_restore_dates_accepts_the_current_lock_versions
+    issue = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+
+    restore [change(issue, @today + 5, @today + 6, issue.lock_version)]
+
+    assert_response :success
+    assert_equal @today + 5, issue.reload.start_date
+  end
+
+  def test_restore_dates_refuses_dates_that_are_read_only_in_the_workflow
+    issue = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    WorkflowPermission.create!(role_id: 1, tracker_id: issue.tracker_id, old_status_id: issue.status_id,
+                               field_name: 'due_date', rule: 'readonly')
+
+    restore [change(issue, @today, @today + 9)]
+
+    assert_response :forbidden
+    assert_equal @today + 3, issue.reload.due_date
+  end
+
+  def test_restore_dates_requires_the_permission_in_every_project_involved
+    # jsmith is a Manager of project 5 in the fixtures; make him a Reporter there, without edit_issues.
+    Member.find_by!(user_id: 2, project_id: 5).update!(role_ids: [3])
+    Role.find(3).remove_permission!(:edit_issues)
+    own = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    foreign = Issue.generate!(project: Project.find(5), start_date: @today, due_date: @today + 3)
+
+    restore [change(own, @today + 1, @today + 4), change(foreign, @today + 1, @today + 4)]
+
+    assert_response :forbidden
+    assert_equal @today, own.reload.start_date, 'nothing may be applied when one issue is refused'
+  end
+
+  def test_restore_dates_requires_the_edit_issues_permission
+    issue = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    Role.find(1).remove_permission!(:edit_issues)
+
+    restore [change(issue, @today + 1, @today + 4)]
+
+    assert_response :forbidden
+    assert_equal @today, issue.reload.start_date
+  end
+
+  def test_restore_dates_hides_issues_the_user_cannot_see
+    issue = Issue.generate!(project: @project, is_private: true, author_id: 1, start_date: @today, due_date: @today + 3)
+    @request.session[:user_id] = 3
+    Role.find(2).update!(issues_visibility: 'default')
+
+    restore [change(issue, @today + 1, @today + 4)]
+
+    assert_response :not_found
+    assert_equal @today, issue.reload.start_date
+  end
+
+  def test_restore_dates_of_an_unknown_issue_is_not_found
+    restore [{ id: 999_999, start_date: @today.to_s, due_date: @today.to_s }]
+
+    assert_response :not_found
+  end
+
+  def test_restore_dates_refuses_anonymous_users
+    issue = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    @request.session[:user_id] = nil
+    @request.headers['Accept'] = 'application/json'
+
+    restore [change(issue, @today + 1, @today + 4)]
+
+    assert_response :forbidden
+    assert_equal @today, issue.reload.start_date
+  end
+
+  def test_restore_dates_rejects_malformed_payloads
+    issue = Issue.generate!(project: @project, start_date: @today, due_date: @today + 3)
+    good = change(issue, @today + 1, @today + 4)
+
+    payloads = [
+      nil, [], 'nope', { id: issue.id },
+      [good, good], # the same issue twice
+      [{ id: 'x', start_date: '2030-01-01', due_date: '2030-01-02' }],
+      [{ id: issue.id, start_date: 'nope', due_date: '2030-01-02' }],
+      [{ id: issue.id, start_date: '2030-13-45', due_date: '2030-01-02' }],
+      [{ id: issue.id, start_date: '2030-01-01', due_date: '2030-01-02', lock_version: 'x' }],
+      ['not a hash']
+    ]
+    payloads.each do |payload|
+      put :restore_dates, params: { changes: payload }
+      assert_response :unprocessable_entity, "#{payload.inspect} should be rejected"
+    end
+    assert_equal @today, issue.reload.start_date
+  end
+
+  def test_restore_dates_limits_the_size_of_a_batch
+    changes = Array.new(VisGanttsController::MAX_RESTORE + 1) { |i| { id: 1_000_000 + i, start_date: nil, due_date: nil } }
+
+    restore changes
+
+    assert_response :unprocessable_entity
+  end
+
+  def test_restore_dates_reschedules_derived_parents_as_usual
+    parent = Issue.generate!(project: @project)
+    child = Issue.generate!(project: @project, parent_issue_id: parent.id, start_date: @today, due_date: @today + 5)
+
+    with_settings parent_issue_dates: 'derived' do
+      restore [change(child, @today + 3, @today + 12)]
+    end
+
+    assert_response :success
+    assert_equal [@today + 3, @today + 12], [parent.reload.start_date, parent.due_date]
+  end
+
+  # ----------------------------------------------------------------- menus
+
+  def test_the_global_view_is_in_the_application_menu_and_not_in_the_top_menu
+    get :show
+
+    assert_response :success
+    assert_select '#main-menu a.vis-gantt.selected', 1
+    assert_select '#top-menu a', text: /Gantt/, count: 0
+  end
+
+  def test_the_project_view_has_a_project_menu_tab
+    get :show, params: { project_id: 1 }
+
+    assert_select '#main-menu a.vis-gantt.selected', 1
+  end
+
+  def test_the_menu_entries_follow_the_view_gantt_permission
+    Role.find(1).remove_permission!(:view_gantt)
+    Role.non_member.remove_permission!(:view_gantt)
+    Role.anonymous.remove_permission!(:view_gantt)
+
+    get :show, params: { project_id: 1 }
+
+    assert_response :forbidden
+  end
+
+  # ----------------------------------------------------------- permissions
 
   def test_assets_available_when_propshaft_knows_all_the_plugin_files
     assert RedmineVisGantt.assets_available?
@@ -562,6 +830,9 @@ class VisGanttsControllerTest < Redmine::ControllerTest
     assert_includes Redmine::AccessControl.allowed_actions(:view_gantt), 'vis_gantts/data'
     assert_includes Redmine::AccessControl.allowed_actions(:edit_issues), 'vis_gantts/update_dates'
     assert_includes Redmine::AccessControl.allowed_actions(:edit_own_issues), 'vis_gantts/update_dates'
+    assert_includes Redmine::AccessControl.allowed_actions(:edit_issues), 'vis_gantts/restore_dates'
+    assert_includes Redmine::AccessControl.allowed_actions(:edit_own_issues), 'vis_gantts/restore_dates'
+    assert_not_includes Redmine::AccessControl.allowed_actions(:view_gantt), 'vis_gantts/restore_dates'
     assert_not_includes Redmine::AccessControl.allowed_actions(:view_gantt), 'vis_gantts/update_dates'
   end
 end

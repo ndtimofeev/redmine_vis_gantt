@@ -1,14 +1,13 @@
 <% html_title(l(:label_vis_gantt)) %>
 
 <% content_for :header_tags do %>
-  <%= stylesheet_link_tag 'vis_gantt', plugin: 'redmine_vis_gantt' %>
+  <%= stylesheet_link_tag 'vis_gantt', plugin: 'redmine_vis_gantt', media: 'all' %>
   <%= javascript_include_tag 'vis-timeline-graph2d.min', plugin: 'redmine_vis_gantt' %>
   <%= javascript_include_tag 'vis_gantt', plugin: 'redmine_vis_gantt' %>
 <% end %>
 
 <div class="contextual">
-  <%= link_to l(:label_vis_gantt_builtin), { controller: 'gantts', action: 'show', project_id: @project },
-              class: 'icon icon-gantt' %>
+  <%= link_to l(:label_vis_gantt_builtin), { controller: 'gantts', action: 'show', project_id: @project } %>
 </div>
 
 <h2><%= @query.new_record? ? l(:label_vis_gantt) : @query.name %></h2>
@@ -19,22 +18,25 @@
   <%= hidden_field_tag 'set_filter', '1' %>
   <div id="query_form_with_buttons" class="hide-when-print">
     <div id="query_form_content">
-      <fieldset id="filters" class="collapsible <%= @query.new_record? ? '' : 'collapsed' %>">
-        <legend onclick="toggleFieldset(this);" class="icon icon-<%= @query.new_record? ? 'expanded' : 'collapsed' %>">
-          <%= sprite_icon(@query.new_record? ? 'angle-down' : 'angle-right', rtl: !@query.new_record?) %>
+      <%# Collapsed by default so that the chart gets the room (unless the filters are invalid). %>
+      <% filters_open = !@query.valid? %>
+      <fieldset id="filters" class="collapsible <%= filters_open ? '' : 'collapsed' %>">
+        <legend onclick="toggleFieldset(this);" class="icon icon-<%= filters_open ? 'expanded' : 'collapsed' %>">
+          <%= sprite_icon(filters_open ? 'angle-down' : 'angle-right', rtl: !filters_open) %>
           <%= l(:label_filter_plural) %>
+          <% if @query.filters.any? %><span class="vg-filter-count"><%= @query.filters.size %></span><% end %>
         </legend>
-        <div style="<%= @query.new_record? ? '' : 'display: none;' %>">
+        <div style="<%= filters_open ? '' : 'display: none;' %>">
           <%= render partial: 'queries/filters', locals: { query: @query } %>
+          <p class="buttons">
+            <%= link_to_function sprite_icon('checked', l(:button_apply)), '$("#query_form").submit()',
+                                 class: 'icon icon-checked' %>
+            <%= link_to sprite_icon('reload', l(:button_clear)), { project_id: @project, set_filter: 1 },
+                        class: 'icon icon-reload' %>
+          </p>
         </div>
       </fieldset>
     </div>
-    <p class="buttons">
-      <%= link_to_function sprite_icon('checked', l(:button_apply)), '$("#query_form").submit()',
-                           class: 'icon icon-checked' %>
-      <%= link_to sprite_icon('reload', l(:button_clear)), { project_id: @project, set_filter: 1 },
-                  class: 'icon icon-reload' %>
-    </p>
   </div>
 <% end %>
 
@@ -56,29 +58,62 @@
        dataUrl: url_for(controller: 'vis_gantts', action: 'data', project_id: @project,
                         params: request.query_parameters, only_path: true),
        updateUrlTemplate: vis_gantt_issue_dates_path(id: 0).sub('/0/', '/__ID__/'),
+       restoreUrl: vis_gantt_restore_dates_path,
        locale: current_language.to_s,
        i18n: {
          today: l(:label_today).capitalize, zoomIn: l(:label_vis_gantt_zoom_in), zoomOut: l(:label_vis_gantt_zoom_out),
          fit: l(:label_vis_gantt_fit), expandAll: l(:label_vis_gantt_expand_all),
          collapseAll: l(:label_vis_gantt_collapse_all), relations: l(:label_vis_gantt_relations),
          saving: l(:label_vis_gantt_saving), saved: l(:notice_vis_gantt_saved),
+         undone: l(:notice_vis_gantt_undone), redone: l(:notice_vis_gantt_redone),
+         apply: l(:button_apply), invalidDates: l(:error_vis_gantt_invalid_dates),
+         toolbar: l(:label_vis_gantt_toolbar), detailsHint: l(:text_vis_gantt_details_hint),
          failed: l(:error_vis_gantt_save_failed), empty: l(:label_no_data),
          startDate: l(:field_start_date), dueDate: l(:field_due_date), assignee: l(:field_assigned_to),
-         status: l(:field_status), doneRatio: l(:field_done_ratio),
+         status: l(:field_status), doneRatio: l(:field_done_ratio), issues: l(:label_issue_plural),
+         duration: l(:label_vis_gantt_duration), days: l(:text_vis_gantt_days),
          datesDerived: l(:text_vis_gantt_dates_derived), dueInherited: l(:text_vis_gantt_due_inherited),
          notEditable: l(:text_vis_gantt_not_editable),
+         undo: l(:label_vis_gantt_undo), redo: l(:label_vis_gantt_redo),
+         undoTitle: l(:text_vis_gantt_undo_title, what: '%{what}'), redoTitle: l(:text_vis_gantt_redo_title, what: '%{what}'),
+         nothingToUndo: l(:text_vis_gantt_nothing_to_undo), nothingToRedo: l(:text_vis_gantt_nothing_to_redo),
+         dismiss: l(:label_vis_gantt_dismiss), busy: l(:text_vis_gantt_busy),
+         staleIssue: l(:error_vis_gantt_stale_issue_n, id: '%{id}'),
+         noDates: l(:label_vis_gantt_no_dates), dragHint: l(:text_vis_gantt_drag_hint),
+         networkError: l(:error_vis_gantt_network), refreshFailed: l(:error_vis_gantt_refresh_failed),
+         week: l(:label_vis_gantt_week), month: l(:label_vis_gantt_month),
+         quarter: l(:label_vis_gantt_quarter), year: l(:label_vis_gantt_year),
+         history: l(:label_vis_gantt_group_history), scale: l(:label_vis_gantt_group_scale),
+         navigate: l(:label_vis_gantt_group_navigate), tree: l(:label_vis_gantt_group_tree),
+         resizeColumn: l(:text_vis_gantt_resize_column),
+         helpTitle: l(:label_vis_gantt_help),
+         help: [l(:text_vis_gantt_help_drag), l(:text_vis_gantt_help_keys), l(:text_vis_gantt_help_history),
+                l(:text_vis_gantt_help_open), l(:text_vis_gantt_help_view)],
+         legendDone: l(:label_vis_gantt_legend_done), legendLate: l(:label_vis_gantt_legend_late),
+         legendTodo: l(:label_vis_gantt_legend_todo), legendSummary: l(:label_vis_gantt_legend_summary),
+         legendVersion: l(:label_vis_gantt_legend_version), legendPrecedes: l(:label_vis_gantt_legend_precedes),
+         legendBlocks: l(:label_vis_gantt_legend_blocks), legendClosed: l(:label_vis_gantt_legend_closed),
+         legendToday: l(:label_vis_gantt_legend_today),
          libraryMissing: l(:error_vis_gantt_library_missing),
          scriptFailed: l(:error_vis_gantt_script_failed, message: '%{message}')
        }
      } %>
 
-  <div class="vg-toolbar hide-when-print" id="vis-gantt-toolbar"></div>
-  <p class="vg-hint hide-when-print"><%= l(:text_vis_gantt_hint) %></p>
-  <div id="vis-gantt-status" class="vg-status hide-when-print" role="status" aria-live="polite"></div>
-  <%# The text stays visible if the script never runs (e.g. its file answers 404); the script removes it. %>
-  <%= content_tag :div, id: 'vis-gantt', data: { config: config.to_json } do %>
-    <p class="vg-loading"><%= l(:text_vis_gantt_loading) %></p>
-  <% end %>
+  <div class="vg-app" id="vis-gantt-app">
+    <div class="vg-toolbar hide-when-print" id="vis-gantt-toolbar" role="toolbar"
+         aria-label="<%= l(:label_vis_gantt_toolbar) %>"></div>
+    <div class="vg-help hide-when-print" id="vis-gantt-help" hidden></div>
+    <div class="vg-details hide-when-print" id="vis-gantt-details" role="region"
+         aria-label="<%= l(:label_vis_gantt_details) %>"></div>
+    <div class="vg-stage">
+      <%# The text stays visible if the script never runs (e.g. its file answers 404); the script removes it. %>
+      <%= content_tag :div, id: 'vis-gantt', data: { config: config.to_json } do %>
+        <p class="vg-loading"><%= l(:text_vis_gantt_loading) %>
+          <span class="vg-loading-hint"><%= l(:text_vis_gantt_loading_hint) %></span></p>
+      <% end %>
+    </div>
+    <ul class="vg-legend" id="vis-gantt-legend"></ul>
+  </div>
 <% end %>
 
 <% content_for :sidebar do %>
